@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>實驗室 AI 安全診斷系統</title>
+    <style>
+        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; max-width: 700px; margin: 20px auto; padding: 0 15px; background-color: #f0f2f5; }
+        h1 { color: #1a365d; text-align: center; }
+        .video-box { width: 100%; max-width: 600px; border-radius: 12px; display: block; margin: 10px auto; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .btn-group { text-align: center; margin: 15px 0; }
+        button { background-color: #2b6cb0; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 0 5px; }
+        button:hover { background-color: #2c5282; }
+        #loading { display: none; text-align: center; color: #d69e2e; font-weight: bold; font-size: 18px; margin: 15px 0; }
+        #result { display: none; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-top: 20px; line-height: 1.6; }
+        .result-content { white-space: pre-wrap; color: #2d3748; }
+    </style>
+</head>
+<body>
+
+    <h1>🔬 實驗室 AI 即時安全與危險診斷</h1>
+
+    <video id="webcam" class="video-box" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <div class="btn-group">
+        <button onclick="startCamera()">開啟鏡頭</button>
+        <button onclick="analyzeDanger()" style="background-color: #c53030;">🚨 掃描並分析危險</button>
+    </div>
+
+    <div id="loading">⏳ AI 專家正在分析實驗狀態與潛在危險...</div>
+
+    <div id="result">
+        <h2 style="color: #c53030; margin-top:0;">🛡️ AI 實驗安全報告</h2>
+        <div id="analysisText" class="result-content"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("無法開啟鏡頭！");
+            }
+        }
+
+        async function analyzeDanger() {
+            if (!video.srcObject) {
+                alert("請先開啟鏡頭！");
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('file', blob, 'lab_capture.jpg');
+
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/analyze', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    document.getElementById('loading').style.display = 'none';
+
+                    if (result.status === 'success') {
+                        document.getElementById('result').style.display = 'block';
+                        document.getElementById('analysisText').innerText = result.analysis_result;
+                    } else {
+                        alert("分析失敗：" + result.message);
+                    }
+                } catch (err) {
+                    document.getElementById('loading').style.display = 'none';
+                    alert("後端連線失敗，請檢查 Python 伺服器！");
+                }
+            }, 'image/jpeg');
+        }
+    </script>
+</body>
+</html>
