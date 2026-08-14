@@ -5,11 +5,9 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-# --- 設定區 ---
-# 優先讀取 Render 環境變數 GEMINI_API_KEY，如果沒有則使用後面括號內的預設 Key
-GEMINI_API_KEY = os.environ.get(
-    "GEMINI_API_KEY", "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA"
-)
+# 🌟 請把這裡替換成你剛剛申請的「最新 Gemini API Key」
+# (例如: AIzaSyxxxxxxx...)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA")
 
 PROMPT_TEXT = """
 你是一位頂級化學實驗室安全專家與 AI 視覺監控系統。
@@ -27,9 +25,6 @@ PROMPT_TEXT = """
 如果畫面完全正常，請說明「目前實驗狀態穩定」，並給出常規安全提醒。
 """
 
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
-# --------------
-
 app = FastAPI(title="實驗室 全方位 AI 安全診斷系統")
 
 app.add_middleware(
@@ -41,25 +36,28 @@ app.add_middleware(
 )
 
 
-# 🌟 關鍵新增：首頁路由 (當大家進入網址時，直接呈現 index.html 畫面)
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
     try:
         with open("index.html", "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content)
+            return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(
-            "<h1>錯誤：找不到 index.html 檔案，請確認已上傳至根目錄</h1>",
-            status_code=404,
+            "<h1>錯誤：找不到 index.html</h1>", status_code=404
         )
 
 
-# 🌟 AI 診斷 API 路由
 @app.post("/analyze")
 async def analyze_lab_danger(file: UploadFile = File(...)):
+    # 🌟 每次發送請求時，動態組合最新的 API URL
+    current_key = os.environ.get("GEMINI_API_KEY", GEMINI_API_KEY)
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={current_key}"
+
     try:
         contents = await file.read()
+        if not contents:
+            raise HTTPException(status_code=400, detail="未接收到圖片檔案")
+
         base64_image = base64.b64encode(contents).decode("utf-8")
 
         payload = {
@@ -69,7 +67,8 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
                         {"text": PROMPT_TEXT},
                         {
                             "inline_data": {
-                                "mime_type": "image/jpeg",
+                                "mime_type": file.content_type
+                                or "image/jpeg",
                                 "data": base64_image,
                             }
                         },
@@ -78,14 +77,14 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
             ]
         }
 
-        response = requests.post(GEMINI_API_URL, json=payload, timeout=25)
+        response = requests.post(api_url, json=payload, timeout=25)
         res_json = response.json()
 
         if response.status_code == 200:
             ai_reply = res_json["candidates"][0]["content"]["parts"][0]["text"]
             return {"status": "success", "analysis_result": ai_reply}
         else:
-            print("【API 報錯詳情】:", res_json)
+            print("【Google API 報錯詳情】:", res_json)
             error_msg = res_json.get("error", {}).get("message", "未知錯誤")
             return {
                 "status": "error",
