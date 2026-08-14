@@ -6,7 +6,6 @@ from fastapi.responses import HTMLResponse
 from google import genai
 from PIL import Image
 
-# --- Prompt 設定 ---
 PROMPT_TEXT = """
 你是一位頂級化學實驗室安全專家與 AI 視覺監控系統。
 請仔細分析這張實驗室畫面，針對以下狀況進行綜合診斷：
@@ -58,37 +57,18 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
         if not contents:
             raise HTTPException(status_code=400, detail="未接收到圖片檔案")
 
-        # 圖片壓縮，提高傳輸與分析效率
+        # 圖片縮圖 (加速傳輸)
         image = Image.open(io.BytesIO(contents))
         image.thumbnail((1024, 1024))
 
+        # 只使用官方最新穩定模型 gemini-2.5-flash
         client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=[image, PROMPT_TEXT]
+        )
 
-        models_to_try = [
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-        ]
-        last_error = None
-
-        for model_name in models_to_try:
-            try:
-                response = client.models.generate_content(
-                    model=model_name, contents=[image, PROMPT_TEXT]
-                )
-                return {"status": "success", "analysis_result": response.text}
-            except Exception as model_err:
-                print(
-                    f"【模型 {model_name} 失敗，嘗試下一個】:",
-                    str(model_err),
-                )
-                last_error = model_err
-                continue
-
-        return {
-            "status": "error",
-            "message": f"Google API 暫時忙碌中，請稍後再試 ({str(last_error)})",
-        }
+        return {"status": "success", "analysis_result": response.text}
 
     except Exception as e:
-        print("【系統例外錯誤】:", str(e))
-        return {"status": "error", "message": f"伺服器處理失敗: {str(e)}"}
+        print("【API 呼叫失敗】:", str(e))
+        return {"status": "error", "message": f"分析失敗: {str(e)}"}
