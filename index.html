@@ -48,45 +48,28 @@
             }
         }
 
-        async function analyzeDanger() {
-            if (!video.srcObject) {
-                alert("請先開啟鏡頭！");
-                return;
+        // 進行 AI 分析的函式
+        async function analyzeImage(blob) {
+            const formData = new FormData();
+            formData.append('file', blob, 'capture.jpg');
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'success') {
+                // 成功拿到 AI 回應
+                showResult(data.analysis_result);
+            } else {
+                // 如果失敗，優先抓出可讀的錯誤訊息，避免印出 undefined
+                const errorMsg = data.message || data.detail || JSON.stringify(data);
+                alert('分析失敗：' + errorMsg);
             }
-
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('result').style.display = 'none';
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            canvas.toBlob(async (blob) => {
-                const formData = new FormData();
-                formData.append('file', blob, 'lab_capture.jpg');
-
-                try {
-                    const response = await fetch('https://lab-ai-backend-36jo.onrender.com/analyze', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const result = await response.json();
-                    document.getElementById('loading').style.display = 'none';
-
-                    if (result.status === 'success') {
-                        document.getElementById('result').style.display = 'block';
-                        document.getElementById('analysisText').innerText = result.analysis_result;
-                    } else {
-                        alert("分析失敗：" + result.message);
-                    }
-                } catch (err) {
-                    document.getElementById('loading').style.display = 'none';
-                    alert("後端連線失敗，請檢查 Python 伺服器！");
-                }
-            }, 'image/jpeg');
+        } catch (err) {
+            alert('網路連線或伺服器異常：' + err.message);
         }
-    </script>
-</body>
-</html>
+      }
