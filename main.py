@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 # --- 設定區 ---
-# 請將你最新申請到的 API Key 填入下方的括號內
+# 請將你最新申請到的 API Key 填入下方的引號內 (例如 "AIzaSyxxxxxx")
 DEFAULT_KEY = "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA"
 
 PROMPT_TEXT = """
@@ -52,10 +52,11 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
     # 優先從系統環境變數讀取，若讀不到才使用 DEFAULT_KEY
     api_key = os.environ.get("GEMINI_API_KEY", DEFAULT_KEY)
 
+    # 簡化判斷：只要 Key 不是空的就放行
     if not api_key:
-    raise HTTPException(
-        status_code=500, detail="未設定有效的 Gemini API Key"
-    )
+        raise HTTPException(
+            status_code=500, detail="未設定有效的 Gemini API Key"
+        )
 
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
 
