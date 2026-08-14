@@ -25,7 +25,6 @@ PROMPT_TEXT = """
 
 app = FastAPI(title="實驗室 全方位 AI 安全診斷系統")
 
-# 跨域 CORS 設定
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,7 +47,6 @@ async def get_index():
 
 @app.post("/analyze")
 async def analyze_lab_danger(file: UploadFile = File(...)):
-    # 優先從 Render 環境變數中讀取 GEMINI_API_KEY
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(
@@ -56,43 +54,38 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
         )
 
     try:
-        # 1. 讀取前端傳來的圖片內容
         contents = await file.read()
         if not contents:
             raise HTTPException(status_code=400, detail="未接收到圖片檔案")
 
-        # 2. 轉為 PIL Image 並進行圖片瘦身 (限制最高寬高 1024px，大幅提升傳輸與 AI 分析速度)
+        # 圖片瘦身 (加速 AI 運算)
         image = Image.open(io.BytesIO(contents))
         image.thumbnail((1024, 1024))
 
-        # 3. 初始化 Google 官方 SDK Client
         client = genai.Client(api_key=api_key)
 
-        # 4. 模型自動備援機制 (避免 503 伺服器流量過載)
+        # 修正為現行 API 完全支援的模型名稱
         models_to_try = [
             "gemini-2.5-flash",
             "gemini-2.0-flash",
-            "gemini-1.5-flash",
+            "gemini-2.0-flash-lite",
         ]
         last_error = None
 
         for model_name in models_to_try:
             try:
-                # 發送請求給 Gemini
                 response = client.models.generate_content(
                     model=model_name, contents=[image, PROMPT_TEXT]
                 )
-                # 成功拿回 AI 分析，直接回傳
                 return {"status": "success", "analysis_result": response.text}
             except Exception as model_err:
                 print(
-                    f"【模型 {model_name} 忙碌或失敗，切換下一備用模型】:",
+                    f"【模型 {model_name} 失敗，嘗試下一個】:",
                     str(model_err),
                 )
                 last_error = model_err
-                continue  # 繼續嘗試列表中的下一個模型
+                continue
 
-        # 如果輪詢所有模型都失敗，回傳提示訊息
         return {
             "status": "error",
             "message": f"Google API 暫時忙碌中，請稍後再試 ({str(last_error)})",
