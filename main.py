@@ -1,14 +1,12 @@
-import base64
+import io
 import os
-import requests
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from google import genai
+from PIL import Image
 
-# --- 設定區 ---
-# 請將你最新申請到的 API Key 填入下方的引號內 (例如 "AIzaSyxxxxxx")
-DEFAULT_KEY = ""
-
+# --- Prompt 設定 ---
 PROMPT_TEXT = """
 你是一位頂級化學實驗室安全專家與 AI 視覺監控系統。
 請仔細分析這張實驗室畫面，針對以下狀況進行綜合診斷：
@@ -27,6 +25,7 @@ PROMPT_TEXT = """
 
 app = FastAPI(title="實驗室 全方位 AI 安全診斷系統")
 
+# 跨域 CORS 設定
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -49,54 +48,56 @@ async def get_index():
 
 @app.post("/analyze")
 async def analyze_lab_danger(file: UploadFile = File(...)):
-    # 優先從系統環境變數讀取，若讀不到才使用 DEFAULT_KEY
-    api_key = os.environ.get("GEMINI_API_KEY", DEFAULT_KEY)
-
-    # 簡化判斷：只要 Key 不是空的就放行
+    # 優先從 Render 環境變數中讀取 GEMINI_API_KEY
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(
-            status_code=500, detail="未設定有效的 Gemini API Key"
+            status_code=500, detail="Render 環境變數未設定 GEMINI_API_KEY"
         )
 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
-
     try:
+        # 1. 讀取前端傳來的圖片內容
         contents = await file.read()
         if not contents:
             raise HTTPException(status_code=400, detail="未接收到圖片檔案")
 
-        base64_image = base64.b64encode(contents).decode("utf-8")
+        # 2. 轉為 PIL Image 並進行圖片瘦身 (限制最高寬高 1024px，大幅提升傳輸與 AI 分析速度)
+        image = Image.open(io.BytesIO(contents))
+        image.thumbnail((1024, 1024))
 
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": PROMPT_TEXT},
-                        {
-                            "inline_data": {
-                                "mime_type": file.content_type
-                                or "image/jpeg",
-                                "data": base64_image,
-                            }
-                        },
-                    ]
-                }
-            ]
+        # 3. 初始化 Google 官方 SDK Client
+        client = genai.Client(api_key=api_key)
+
+        # 4. 模型自動備援機制 (避免 503 伺服器流量過載)
+        models_to_try = [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+        ]
+        last_error = None
+
+        for model_name in models_to_try:
+            try:
+                # 發送請求給 Gemini
+                response = client.models.generate_content(
+                    model=model_name, contents=[image, PROMPT_TEXT]
+                )
+                # 成功拿回 AI 分析，直接回傳
+                return {"status": "success", "analysis_result": response.text}
+            except Exception as model_err:
+                print(
+                    f"【模型 {model_name} 忙碌或失敗，切換下一備用模型】:",
+                    str(model_err),
+                )
+                last_error = model_err
+                continue  # 繼續嘗試列表中的下一個模型
+
+        # 如果輪詢所有模型都失敗，回傳提示訊息
+        return {
+            "status": "error",
+            "message": f"Google API 暫時忙碌中，請稍後再試 ({str(last_error)})",
         }
 
-        response = requests.post(api_url, json=payload, timeout=60)
-        res_json = response.json()
-
-        if response.status_code == 200:
-            ai_reply = res_json["candidates"][0]["content"]["parts"][0]["text"]
-            return {"status": "success", "analysis_result": ai_reply}
-        else:
-            print("【Google API 報錯詳情】:", res_json)
-            error_msg = res_json.get("error", {}).get("message", "未知錯誤")
-            return {
-                "status": "error",
-                "message": f"Google API 錯誤 ({response.status_code}): {error_msg}",
-            }
-
     except Exception as e:
+        print("【系統例外錯誤】:", str(e))
         return {"status": "error", "message": f"伺服器處理失敗: {str(e)}"}
