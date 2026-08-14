@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 
 # --- 設定區 ---
 # 請將你最新申請到的 API Key 填入下方的引號內 (例如 "AIzaSyxxxxxx")
-DEFAULT_KEY = "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA"
+DEFAULT_KEY = ""
 
 PROMPT_TEXT = """
 你是一位頂級化學實驗室安全專家與 AI 視覺監控系統。
