@@ -5,9 +5,9 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-# 🌟 請把這裡替換成你剛剛申請的「最新 Gemini API Key」
-# (例如: AIzaSyxxxxxxx...)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA")
+# --- 設定區 ---
+# 請將你最新申請到的 API Key 填入下方的括號內
+DEFAULT_KEY = "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA"
 
 PROMPT_TEXT = """
 你是一位頂級化學實驗室安全專家與 AI 視覺監控系統。
@@ -43,15 +43,21 @@ async def get_index():
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(
-            "<h1>錯誤：找不到 index.html</h1>", status_code=404
+            "<h1>錯誤：找不到 index.html 檔案</h1>", status_code=404
         )
 
 
 @app.post("/analyze")
 async def analyze_lab_danger(file: UploadFile = File(...)):
-    # 🌟 每次發送請求時，動態組合最新的 API URL
-    current_key = os.environ.get("GEMINI_API_KEY", GEMINI_API_KEY)
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={current_key}"
+    # 優先從系統環境變數讀取，若讀不到才使用 DEFAULT_KEY
+    api_key = os.environ.get("GEMINI_API_KEY", DEFAULT_KEY)
+
+    if not api_key or api_key == "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA":
+        raise HTTPException(
+            status_code=500, detail="未設定有效的 Gemini API Key"
+        )
+
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
 
     try:
         contents = await file.read()
