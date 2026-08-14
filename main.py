@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 # --- 設定區 ---
 # 優先讀取 Render 環境變數 GEMINI_API_KEY，如果沒有則使用後面括號內的預設 Key
 GEMINI_API_KEY = os.environ.get(
-    "GEMINI_API_KEY", "這裡貼上你的_GEMINI_API_KEY"
+    "GEMINI_API_KEY", "AQ.Ab8RN6K3haDw-_Vg9mjnmnkK2YvfUwAJpHOfwW2QZCrG3eHTsA"
 )
 
 PROMPT_TEXT = """
