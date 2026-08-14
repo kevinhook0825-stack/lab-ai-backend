@@ -58,17 +58,15 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
         if not contents:
             raise HTTPException(status_code=400, detail="未接收到圖片檔案")
 
-        # 圖片瘦身 (加速 AI 運算)
+        # 圖片壓縮，提高傳輸與分析效率
         image = Image.open(io.BytesIO(contents))
         image.thumbnail((1024, 1024))
 
         client = genai.Client(api_key=api_key)
 
-        # 修正為現行 API 完全支援的模型名稱
         models_to_try = [
             "gemini-2.5-flash",
             "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
         ]
         last_error = None
 
