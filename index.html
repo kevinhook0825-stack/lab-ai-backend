@@ -5,71 +5,185 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>實驗室 AI 安全診斷系統</title>
     <style>
-        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; max-width: 700px; margin: 20px auto; padding: 0 15px; background-color: #f0f2f5; }
-        h1 { color: #1a365d; text-align: center; }
-        .video-box { width: 100%; max-width: 600px; border-radius: 12px; display: block; margin: 10px auto; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
-        .btn-group { text-align: center; margin: 15px 0; }
-        button { background-color: #2b6cb0; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 0 5px; }
-        button:hover { background-color: #2c5282; }
-        #loading { display: none; text-align: center; color: #d69e2e; font-weight: bold; font-size: 18px; margin: 15px 0; }
-        #result { display: none; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-top: 20px; line-height: 1.6; }
-        .result-content { white-space: pre-wrap; color: #2d3748; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #1a365d;
+            margin-bottom: 20px;
+        }
+        .camera-box {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 20px;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-start {
+            background-color: #3182ce;
+            color: white;
+        }
+        .btn-start:hover {
+            background-color: #2b6cb0;
+        }
+        .btn-analyze {
+            background-color: #e53e3e;
+            color: white;
+        }
+        .btn-analyze:hover {
+            background-color: #c53030;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #d69e2e;
+            margin: 20px 0;
+        }
+        .result-card {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-left: 6px solid #3182ce;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
 
-    <h1>🔬 實驗室 AI 即時安全與危險診斷</h1>
+    <h1>🧪 實驗室 AI 視覺安全診斷</h1>
 
-    <video id="webcam" class="video-box" autoplay playsinline></video>
-    <canvas id="canvas" style="display:none;"></canvas>
+    <div class="camera-box">
+        <video id="video" autoplay playsinline muted></video>
+    </div>
 
     <div class="btn-group">
-        <button onclick="startCamera()">開啟鏡頭</button>
-        <button onclick="analyzeDanger()" style="background-color: #c53030;">🚨 掃描並分析危險</button>
+        <button class="btn-start" onclick="startCamera()">📷 開啟鏡頭</button>
+        <button class="btn-analyze" onclick="analyzeDanger()">🔍 掃描診斷</button>
     </div>
 
-    <div id="loading">⏳ AI 專家正在分析實驗狀態與潛在危險...</div>
+    <div id="loading" class="loading">⏳ AI 專家正在分析中，請稍候...</div>
 
-    <div id="result">
-        <h2 style="color: #c53030; margin-top:0;">🛡️ AI 實驗安全報告</h2>
-        <div id="analysisText" class="result-content"></div>
+    <div id="result" class="result-card">
+        <h3>📋 AI 診斷結果</h3>
+        <p id="analysisText"></p>
     </div>
+
+    <canvas id="canvas" style="display: none;"></canvas>
 
     <script>
-        const video = document.getElementById('webcam');
+        const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
 
+        // 啟動鏡頭 (支援手機後鏡頭與電腦相機)
         async function startCamera() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("您的瀏覽器或目前的連線不支援鏡頭存取！\n提示：手機使用鏡頭必須透過 https 網址存取。");
+                return;
+            }
+
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // 優先嘗試開啟手機後置鏡頭 (environment)
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" } },
+                    audio: false
+                });
                 video.srcObject = stream;
             } catch (err) {
-                alert("無法開啟鏡頭！");
+                console.warn("無法取得後鏡頭，嘗試開啟預設鏡頭...", err);
+                try {
+                    // 降級嘗試開啟任意可用鏡頭
+                    const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                    video.srcObject = fallbackStream;
+                } catch (fallbackErr) {
+                    alert("無法開啟鏡頭！請確認您已在瀏覽器設定中允許「相機權限」。\n錯誤訊息：" + fallbackErr.message);
+                }
             }
         }
 
-        // 進行 AI 分析的函式
-        async function analyzeImage(blob) {
-            const formData = new FormData();
-            formData.append('file', blob, 'capture.jpg');
-
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    body: formData
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.status === 'success') {
-                // 成功拿到 AI 回應
-                showResult(data.analysis_result);
-            } else {
-                // 如果失敗，優先抓出可讀的錯誤訊息，避免印出 undefined
-                const errorMsg = data.message || data.detail || JSON.stringify(data);
-                alert('分析失敗：' + errorMsg);
+        // 拍照並發送 AI 分析
+        async function analyzeDanger() {
+            if (!video.srcObject) {
+                alert("請先點擊「開啟鏡頭」！");
+                return;
             }
-        } catch (err) {
-            alert('網路連線或伺服器異常：' + err.message);
+
+            // 顯示載入中動畫
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+
+            // 將 Video 當下畫面繪製到 Canvas
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // 轉成 JPEG 並發送至後端
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('file', blob, 'lab_capture.jpg');
+
+                try {
+                    // 相對路徑 /analyze (自動對應當前 Render 伺服器網域)
+                    const response = await fetch('/analyze', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    document.getElementById('loading').style.display = 'none';
+
+                    if (response.ok && result.status === 'success') {
+                        document.getElementById('result').style.display = 'block';
+                        document.getElementById('analysisText').innerText = result.analysis_result;
+                    } else {
+                        // 防呆抓取真正的錯誤原因，不顯示 undefined
+                        const errorMsg = result.message || result.detail || JSON.stringify(result);
+                        alert("AI 分析失敗：" + errorMsg);
+                    }
+                } catch (err) {
+                    document.getElementById('loading').style.display = 'none';
+                    alert("雲端伺服器連線失敗或異常，請稍後再試！\n錯誤：" + err.message);
+                }
+            }, 'image/jpeg', 0.8);
         }
-      }
+    </script>
+</body>
+</html>
