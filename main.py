@@ -84,7 +84,7 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
             ]
         }
 
-        response = requests.post(api_url, json=payload, timeout=25)
+        response = requests.post(api_url, json=payload, timeout=60)
         res_json = response.json()
 
         if response.status_code == 200:
