@@ -66,7 +66,7 @@ async def analyze_lab_danger(file: UploadFile = File(...)):
 
         # 2. 正確加上 models/ 前綴，符合最新 SDK 規範
         response = client.models.generate_content(
-            model="models/gemini-2.5-flash", contents=[image, PROMPT_TEXT]
+            model="models/gemini-3.6-flash", contents=[image, PROMPT_TEXT]
         )
 
         return {"status": "success", "analysis_result": response.text}
